@@ -8,6 +8,10 @@
 #include <sys/ioctl.h>
 #include "linux/i2c-dev.h"
 
+/* ------------------------------------------------
+ * Demonstrate general IO to the LCD
+ * ----------------------------------------------- */
+
 int main(int argc, char *argv[])
 {
     int fd;

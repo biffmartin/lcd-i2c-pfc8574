@@ -18,6 +18,7 @@
  * gcc -g i2cdemo-pim.c -o i2cdemo-pim.x
  * How to Run:
  * sudo ./i2cdemo-pim.x
+ * DO NOT USE THIS PROGRAM FOR ANYTHING! ITS JUST TRASH CODE
  * -------------------------------------------------------- */
 
 #define _MODE_REGISTER 0x00

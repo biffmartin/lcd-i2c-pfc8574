@@ -10,10 +10,11 @@
 #include "linux/i2c-dev.h"
 
 /* ---------------------------------------------------------
- * Author: Mike Martin               Date March 5, 2019
+ * Author: Mike Martin               Date May 16, 2021
  * A Cowboy Programmer
  *
- * I2C LCD Display Module LCD2004 20x4 module with 5x8
+ * i2cdemo-pim.c    
+ * I2C LCD Display Module LCD2004 20x4 module with 5x8 chars
  * with PFC8574 controller to I2C,  Converts I2C to 8 bit
  * LCD control.  
  * Raspberry PI connections: SCA, SCL, 5V DC and GND
@@ -21,6 +22,8 @@
  * gcc -g i2cdemo-pim.c -o i2cdemo-pim.x
  * How to Run:
  * sudo ./i2cdemo-pim.x
+ * This is the main demo program code for the vishay 20x4 lcd
+ * Demonstrates how to use the C stdio library to operate lcd
  * -------------------------------------------------------- */
 
 #define _MODE_REGISTER 0x00
@@ -120,6 +123,9 @@ int main(int argc, char *argv[])
     int ix,fd;
     struct timespec _500ms;
     struct timespec _2sec;
+    time_t rawtime;
+    struct tm *info;
+    char timestr[80];
     char buf[80];
     char block[3] = { 0x01, 0x02, 0x0 };
     char pos;
@@ -131,16 +137,22 @@ int main(int argc, char *argv[])
     fd = lcd_init(0x27);
     lcd_clear(fd);
 
-    block[0] = 0x01;
-    block[1] = 0x02;
+    /* ---------------------------------------------
+     * Demonstrate the Custom Font Feature
+     * ------------------------------------------- */
+    block[0] = 0x03;
+    block[1] = 0x04;
     lcd_load_custom_chars(fd, 7, (char **)fontdata1);
-    lcd_display_string_pos(fd, block, 1, 1);
-    lcd_display_string_pos(fd, block, 2, 1);
-    lcd_display_string_pos(fd, block, 3, 1);
-    lcd_display_string_pos(fd, block, 4, 1);
+    lcd_display_string_pos(fd, block, 1, 0);
+    lcd_display_string_pos(fd, block, 2, 0);
+    lcd_display_string_pos(fd, block, 3, 0);
+    lcd_display_string_pos(fd, block, 4, 0);
     nanosleep(&_2sec, NULL);
     lcd_clear(fd);
 
+    /* ---------------------------------------------
+     * Demonstrate the Single Char Write Feature
+     * ------------------------------------------- */
     lcd_write_char(fd, 0x80, 0);   // 0x80 - Line 1
     lcd_write_char(fd, 'A',  1);
     lcd_write_char(fd, 0,   1);
@@ -155,7 +167,10 @@ int main(int argc, char *argv[])
     lcd_write_char(fd, 'A', 1);
     lcd_write_char(fd, 'T', 1);
     lcd_write_char(fd, 0x94, 0);   // 0x94 - Line 3
-    lcd_write_char(fd, 'C', 1);
+    lcd_write_char(fd, 'A', 1);
+    lcd_write_char(fd,  6,  1);
+    lcd_write_char(fd,  7,  1);
+    lcd_write_char(fd,  8,  1);
     lcd_write_char(fd, 'C', 1);
     lcd_write_char(fd, 'C', 1);
     lcd_write_char(fd, 0xD4, 0);   // 0xD4 - Line 4
@@ -172,19 +187,32 @@ int main(int argc, char *argv[])
     lcd_write_char(fd, '?', 1);
     lcd_write_char(fd, '*', 1);
     nanosleep(&_2sec, NULL);
-    lcd_clear(fd);
-    lcd_write_string(fd, "The quick brown fox jumps over the lazy dog? Really? Are You Serious?", 1);
-    nanosleep(&_2sec, NULL);
-    // lcd_read_byte_data(fd, buf, 1);
-    lcd_clear(fd);
 
-    pos = 0x80;
-    lcd_write_char(fd, pos, 0);   // 0xD4 - Line 4
-    for (ix=0; ix<64; ix++) {
-        lcd_write_char(fd, 'H', 1);
-        nanosleep(&_500ms, NULL);
+
+    /* ---------------------------------------------
+     * Demonstrate Printing Strings on the LCD
+     * ------------------------------------------- */
+    lcd_clear(fd);
+    lcd_write_string(fd, "The quick brown fox jumps over the lazy dog? ABCDEFGHIJKLMNOPQRSTXYZ", 1);
+    nanosleep(&_2sec, NULL);
+    // lcd_read_byte_data(fd, buf, 64);
+
+    /* ---------------------------------------------
+     * Demonstrate Printing Strings on the LCD
+     * ------------------------------------------- */
+    lcd_clear(fd);
+    for (ix=0; ix<10; ix++) {
+       time( &rawtime );
+       info = localtime( &rawtime );
+       strftime(timestr, 80, "[**Date and Time:**]%A %x     %I:%M:%S %p", info);
+
+       lcd_write_string(fd, timestr, 1);
+       nanosleep(&_2sec, NULL);
     }
 
+    /* ---------------------------------------------
+     * Shutdown and clear the LCD
+     * ------------------------------------------- */
     lcd_clear(fd);
     lcd_write(fd, LCD_DISPLAYCONTROL | LCD_DISPLAYOFF);
     lcd_backlight(fd, 0);
@@ -360,13 +388,13 @@ int lcd_read_byte_data(int fd, char *buf, int cnt)
     write(fd, &val, 1);
     nanosleep(&_500ms, NULL);
     len = read(fd, buf, cnt);
-    printf("%d %x\n", len, buf[0]);
+    printf("%d 0x%x %s\n", len, buf[0], buf);
 
     val=0b00000110;
     write(fd, &val, 1);
     nanosleep(&_500ms, NULL);
     len = read(fd, buf, cnt);
-    printf("%d %x\n", len, buf[0]);
+    printf("%d 0x%x\n", len, buf[0]);
 }
 
 int lcd_load_custom_chars(int fd, int nchars, char **fontdata) 
