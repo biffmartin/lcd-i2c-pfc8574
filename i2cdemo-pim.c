@@ -90,6 +90,27 @@ int lcd_write( int, char );
 int lcd_backlight( int, int );
 int lcd_write_string( int, char *, int );
 int lcd_read_byte_data( int, char *, int);
+int lcd_load_custom_chars( int, int, char **);
+int lcd_display_string_pos(int, char *, int, int);
+
+/* let's define a custom icon, consisting of 6 individual characters
+ 3 chars in the first row and 3 chars in the second row */
+char fontdata1[7][8] = {
+        /* Char 0 - Upper-left   */
+        { 0x00, 0x00, 0x03, 0x04, 0x08, 0x19, 0x11, 0x10 },
+        /* Char 1 - Upper-middle   */
+        { 0x00, 0x1F, 0x00, 0x00, 0x00, 0x11, 0x11, 0x00 },
+        /* Char 2 - Upper-right   */
+        { 0x00, 0x00, 0x18, 0x04, 0x02, 0x13, 0x11, 0x01 },
+        /* Char 3 - Lower-left   */
+        { 0x12, 0x13, 0x1b, 0x09, 0x04, 0x03, 0x00, 0x00 },
+        /* Char 4 - Lower-middle   */
+        { 0x00, 0x11, 0x1f, 0x1f, 0x0e, 0x00, 0x1F, 0x00 },
+        /* Char 5 - Lower-right   */
+        { 0x09, 0x19, 0x1b, 0x12, 0x04, 0x18, 0x00, 0x00 },
+        /* Char 6 - my test   */
+        { 0x1f, 0x0, 0x4, 0xe, 0x0, 0x1f, 0x1f, 0x1f },
+};
 
 /* ---------------------------------------------------------
  * test the functions
@@ -100,30 +121,45 @@ int main(int argc, char *argv[])
     struct timespec _500ms;
     struct timespec _2sec;
     char buf[80];
+    char block[3] = { 0x01, 0x02, 0x0 };
+    char pos;
     _500ms.tv_sec = 0;
     _500ms.tv_nsec = 5000000L;
     _2sec.tv_sec = 2;
     _2sec.tv_nsec = 0L;
 
     fd = lcd_init(0x27);
+    lcd_clear(fd);
 
-    lcd_write_char(fd, 0x80, 0);
-    lcd_write_char(fd, 'H',  1);
-    lcd_write_char(fd, 0,    1);
-    lcd_write_char(fd, 1,    1);
-    lcd_write_char(fd, 2,    1);
-    lcd_write_char(fd, 0xC0, 0);
-    lcd_write_char(fd, 'E',  1);
+    block[0] = 0x01;
+    block[1] = 0x02;
+    lcd_load_custom_chars(fd, 7, (char **)fontdata1);
+    lcd_display_string_pos(fd, block, 1, 1);
+    lcd_display_string_pos(fd, block, 2, 1);
+    lcd_display_string_pos(fd, block, 3, 1);
+    lcd_display_string_pos(fd, block, 4, 1);
+    nanosleep(&_2sec, NULL);
+    lcd_clear(fd);
+
+    lcd_write_char(fd, 0x80, 0);   // 0x80 - Line 1
+    lcd_write_char(fd, 'A',  1);
+    lcd_write_char(fd, 0,   1);
+    lcd_write_char(fd, 1,   1);
+    lcd_write_char(fd, 2,   1);
+    lcd_write_char(fd, 0xC0, 0);   // 0xc0 - Line 2
+    lcd_write_char(fd, 'A',  1);
     lcd_write_char(fd,  3,  1);
     lcd_write_char(fd,  4,  1);
     lcd_write_char(fd,  5,  1);
     lcd_write_char(fd, 'C', 1);
     lcd_write_char(fd, 'A', 1);
     lcd_write_char(fd, 'T', 1);
-    lcd_write_char(fd, 0x94, 0);
+    lcd_write_char(fd, 0x94, 0);   // 0x94 - Line 3
     lcd_write_char(fd, 'C', 1);
-    lcd_write_char(fd, 0xD4, 0);
     lcd_write_char(fd, 'C', 1);
+    lcd_write_char(fd, 'C', 1);
+    lcd_write_char(fd, 0xD4, 0);   // 0xD4 - Line 4
+    lcd_write_char(fd, 'D', 1);
     lcd_write_char(fd, 'A', 1);
     lcd_write_char(fd, 'T', 1);
     lcd_write_char(fd, 254, 1);
@@ -142,6 +178,14 @@ int main(int argc, char *argv[])
     // lcd_read_byte_data(fd, buf, 1);
     lcd_clear(fd);
 
+    pos = 0x80;
+    lcd_write_char(fd, pos, 0);   // 0xD4 - Line 4
+    for (ix=0; ix<64; ix++) {
+        lcd_write_char(fd, 'H', 1);
+        nanosleep(&_500ms, NULL);
+    }
+
+    lcd_clear(fd);
     lcd_write(fd, LCD_DISPLAYCONTROL | LCD_DISPLAYOFF);
     lcd_backlight(fd, 0);
 
@@ -323,5 +367,36 @@ int lcd_read_byte_data(int fd, char *buf, int cnt)
     nanosleep(&_500ms, NULL);
     len = read(fd, buf, cnt);
     printf("%d %x\n", len, buf[0]);
+}
+
+int lcd_load_custom_chars(int fd, int nchars, char **fontdata) 
+{
+    int irow, icol;
+    char ch;
+    lcd_write(fd, LCD_SETCGRAMADDR);
+    for (irow=0; irow<nchars; irow++) {
+    	for (icol=0; icol<8; icol++) {
+		ch = fontdata1[irow][icol];
+    		lcd_write_char(fd, ch,  0);
+	}
+    }
+    return 1;
+
+}
+
+int lcd_display_string_pos(int fd, char *str, int line, int pos)
+{
+   char pos_new;
+   int i,len;
+   len = strlen(str);
+   if (line == 1) pos_new = (char)pos;
+   else if (line == 2) pos_new = 0x40 + (char)pos;
+   else if (line == 3) pos_new = 0x14 + (char)pos;
+   else if (line == 4) pos_new = 0x54 + (char)pos;
+   lcd_write_char(fd, 0x80 + pos_new, 0);
+   for (i=0; i<len; i++) {
+       lcd_write_char(fd, str[i], 1);
+   }
+   return 1;
 }
 
